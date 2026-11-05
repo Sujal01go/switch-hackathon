@@ -21,11 +21,14 @@ class FileUploadService:
 
         file_size = len(content)
 
-        # BUG: Incorrect size validation causing internal server error on files > 10MB
-        # Instead of rejecting gracefully or handling chunked PDF processing,
-        # it triggers an unexpected RuntimeError (simulating 500 error).
         if file_size > self.MAX_FILE_SIZE:
-            raise RuntimeError(f"Buffer overflow: file size {file_size} exceeds internal buffer limit (500 Internal Server Error)")
+            return {
+                "valid": False,
+                "filename": filename,
+                "size": file_size,
+                "content_type": "application/pdf" if ext == ".pdf" else "application/octet-stream",
+                "error": f"File size {file_size} exceeds maximum permitted limit of 10 MB"
+            }
 
         return {
             "valid": True,
@@ -37,9 +40,17 @@ class FileUploadService:
     def process_upload(self, filename: str, content: bytes) -> Dict[str, Any]:
         """Process file upload safely."""
         validation = self.validate_file(filename, content)
+        if not validation.get("valid", False):
+            return {
+                "status": "rejected",
+                "filename": validation["filename"],
+                "size": validation["size"],
+                "error": validation.get("error", "Validation failed")
+            }
+
         return {
             "status": "success",
-            "filename": validation["filename"],
+            "filename": filename,
             "size": validation["size"],
-            "message": "File uploaded successfully"
+            "content_type": validation["content_type"]
         }
